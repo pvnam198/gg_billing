@@ -26,6 +26,7 @@ data class SaleProductDetail(
 
     fun getSubscriptionOfferDetail(offerId: String?): SubscriptionOfferDetail? {
         return subscriptionOfferDetails?.find { it.offerId == offerId }
+            ?: subscriptionOfferDetails?.find { it.offerId == null }
     }
 
 }
