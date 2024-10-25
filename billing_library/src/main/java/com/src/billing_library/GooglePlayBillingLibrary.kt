@@ -81,15 +81,10 @@ class GooglePlayBillingLibrary(context: Context) : BillingLibrary {
         Thread {
             billingClient.startConnection(object : BillingClientStateListener {
                 override fun onBillingServiceDisconnected() {
-                    Log.d("log_debugs", "GooglePlayBillingLibrary_onBillingServiceDisconnected: ")
                     listener.onDisconnected()
                 }
 
                 override fun onBillingSetupFinished(billingResult: BillingResult) {
-                    Log.d(
-                        "log_debugs",
-                        "GooglePlayBillingLibrary_onBillingSetupFinished: ${billingResult.responseCode}"
-                    )
                     if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
                         listener.onConnectionSuccess()
                     } else {
@@ -108,30 +103,38 @@ class GooglePlayBillingLibrary(context: Context) : BillingLibrary {
         val latch = CountDownLatch(2) // Wait for 2 async tasks
 
         // Query subscription products
-        Thread {
-            val params = subs.map {
-                QueryProductDetailsParams.Product.newBuilder().setProductId(it)
-                    .setProductType(BillingClient.ProductType.SUBS).build()
-            }
-            val builder = QueryProductDetailsParams.newBuilder().setProductList(params).build()
-            billingClient.queryProductDetailsAsync(builder) { _, productDetails ->
-                subsProductDetails = ArrayList(productDetails)
-                latch.countDown() // Decrement the latch count
-            }
-        }.start()
+        if (subs.isEmpty()) {
+            latch.countDown()
+        } else {
+            Thread {
+                val params = subs.map {
+                    QueryProductDetailsParams.Product.newBuilder().setProductId(it)
+                        .setProductType(BillingClient.ProductType.SUBS).build()
+                }
+                val builder = QueryProductDetailsParams.newBuilder().setProductList(params).build()
+                billingClient.queryProductDetailsAsync(builder) { _, productDetails ->
+                    subsProductDetails = ArrayList(productDetails)
+                    latch.countDown() // Decrement the latch count
+                }
+            }.start()
+        }
 
+        if (inApp.isEmpty()) {
+            latch.countDown()
+        } else {
+            Thread {
+                val params = inApp.map {
+                    QueryProductDetailsParams.Product.newBuilder().setProductId(it)
+                        .setProductType(BillingClient.ProductType.INAPP).build()
+                }
+                val builder = QueryProductDetailsParams.newBuilder().setProductList(params).build()
+                billingClient.queryProductDetailsAsync(builder) { _, productDetails ->
+                    inAppProductDetails = ArrayList(productDetails)
+                    latch.countDown() // Decrement the latch count
+                }
+            }.start()
+        }
         // Query in-app products
-        Thread {
-            val params = inApp.map {
-                QueryProductDetailsParams.Product.newBuilder().setProductId(it)
-                    .setProductType(BillingClient.ProductType.INAPP).build()
-            }
-            val builder = QueryProductDetailsParams.newBuilder().setProductList(params).build()
-            billingClient.queryProductDetailsAsync(builder) { _, productDetails ->
-                inAppProductDetails = ArrayList(productDetails)
-                latch.countDown() // Decrement the latch count
-            }
-        }.start()
 
         // Wait for both queries to complete
         latch.await()
@@ -152,9 +155,6 @@ class GooglePlayBillingLibrary(context: Context) : BillingLibrary {
             productDetails.add(it.toSaleProductDetail())
         }
 
-        productDetails.forEach {
-            Log.d("log_debugs", "GooglePlayBillingLibrary_queryProductDetails: ${it}")
-        }
         // Response productDetails
         onCompleted(productDetails)
     }
